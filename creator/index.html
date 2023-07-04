@@ -35,7 +35,7 @@
   </style>
   <script>
     const blockSize = 16 // bytes (for AES, IV)
-    const saltSize = 16 // bytes (for PBKDF2)
+    const saltSize = 32 // bytes (for PBKDF2)
     const iterations = 5000000 // key derivation (with PBKDF2)
     const keySize = 32 // bytes (derived with PBKDF2, used by AES)
 
@@ -96,7 +96,7 @@
           name: "PBKDF2", // https://en.wikipedia.org/wiki/PBKDF2
           salt: salt, // for flavor
           iterations: iterations, // how long to stomp on the password
-          hash: "SHA-256", // As per standard v2.0
+          hash: "SHA-512", // As per standard v2.0
         },
         passwordKey, // Wrapped password
         {
