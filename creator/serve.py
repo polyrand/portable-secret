@@ -14,9 +14,9 @@ port = 8443
 cert = "./cert.crt"
 key = "./private.key"
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-    context.load_cert_chain(certfile=cert, keyfile=key, password='')
+    context.load_cert_chain(certfile=cert, keyfile=key, password="")
     server_address = (host, port)
     httpd = http.server.HTTPServer(server_address, http.server.SimpleHTTPRequestHandler)
     httpd.socket = context.wrap_socket(httpd.socket, server_side=True)

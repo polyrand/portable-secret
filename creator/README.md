@@ -3,8 +3,9 @@
 Creator could be embedded in a single HTML file with inlined Javascript, and be portable.
 
 However this has some issues:
- - Inlining all JS requires 2 levels of escaping, making it hard to modify/maintain those files
- - Some browsers disable `window.crypto` on local files and non-TLS servers
+
+- Inlining all JS requires 2 levels of escaping, making it hard to modify/maintain those files
+- Some browsers disable `window.crypto` on local files and non-TLS servers
 
 So the easiest way to run the creator locally is:
 
