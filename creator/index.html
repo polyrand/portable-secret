@@ -234,7 +234,7 @@
 
         secretPage = pageTemplate
         secretPage = secretPage.replaceAll("{{PASSWORD_HINT}}", passwordHint)
-        secretPage = secretPage.replaceAll("{{VALUES}}", values)
+        secretPage = secretPage.replaceAll("{ { VALUES } }", values)
 
         var blob = new Blob([secretPage], { 'type': 'text/html' });
         document.getElementById("target_link").setAttribute("href", window.URL.createObjectURL(blob))
