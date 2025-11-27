@@ -79,6 +79,24 @@ Uses Web Cryptography API (PBKDF2 + AES-GCM)
             margin-top: 30px;
             color: #666;
         }
+
+        .hidden-message {
+            background-color: #ffcccc;
+            border: 2px dotted #cc0000;
+        }
+
+        #copy-btn {
+            font-size: medium;
+            padding: 8px 16px;
+            cursor: pointer;
+            margin-left: 10px;
+        }
+
+        #timer-display {
+            margin-left: 15px;
+            color: #666;
+            font-size: 0.9em;
+        }
     </style>
     <script>
         const SECRET = {{SECRET_JSON}};
@@ -86,6 +104,10 @@ Uses Web Cryptography API (PBKDF2 + AES-GCM)
         const saltSize = 32;   // bytes
         const blockSize = 16;  // bytes (AES block / IV size)
         const keySize = 32;    // bytes
+        const hideTimeout = 20000; // ms - auto-hide after 20 seconds
+        let hideTimer = null;
+        let countdownInterval = null;
+        let decryptedText = null;
 
         async function init() {
             document.getElementById("salt").value = SECRET.salt;
@@ -95,6 +117,18 @@ Uses Web Cryptography API (PBKDF2 + AES-GCM)
                 if (event.key === "Enter") decrypt();
             });
             document.getElementById("password").focus();
+
+            // Hide message when browser loses focus
+            document.addEventListener("visibilitychange", () => {
+                if (document.hidden && decryptedText !== null) {
+                    hideMessage("Hidden: browser tab switched");
+                }
+            });
+            window.addEventListener("blur", () => {
+                if (decryptedText !== null) {
+                    hideMessage("Hidden: window lost focus");
+                }
+            });
         }
 
         async function decrypt() {
@@ -141,7 +175,9 @@ Uses Web Cryptography API (PBKDF2 + AES-GCM)
 
                 document.getElementById("target_text").innerText = plainText;
                 document.getElementById("text_output_div").hidden = false;
+                decryptedText = plainText;
                 setMessage("✅ Decrypted successfully");
+                startHideTimer();
 
             } catch (err) {
                 setMessage(`❌ Decryption failed: ${err.message || err}`);
@@ -164,6 +200,62 @@ Uses Web Cryptography API (PBKDF2 + AES-GCM)
         function setMessage(msg) {
             document.getElementById("errormsg").innerHTML = msg;
         }
+
+        function startHideTimer() {
+            clearTimers();
+            let secondsLeft = hideTimeout / 1000;
+            updateTimerDisplay(secondsLeft);
+            
+            countdownInterval = setInterval(() => {
+                secondsLeft--;
+                updateTimerDisplay(secondsLeft);
+            }, 1000);
+            
+            hideTimer = setTimeout(() => {
+                hideMessage("Hidden: auto-timeout (20s)");
+            }, hideTimeout);
+        }
+
+        function clearTimers() {
+            if (hideTimer) {
+                clearTimeout(hideTimer);
+                hideTimer = null;
+            }
+            if (countdownInterval) {
+                clearInterval(countdownInterval);
+                countdownInterval = null;
+            }
+        }
+
+        function updateTimerDisplay(seconds) {
+            const display = document.getElementById("timer-display");
+            if (display) {
+                display.innerText = `Auto-hide in ${seconds}s`;
+            }
+        }
+
+        function hideMessage(reason) {
+            clearTimers();
+            decryptedText = null;
+            document.getElementById("target_text").innerText = "";
+            document.getElementById("text_output_div").hidden = true;
+            document.getElementById("timer-display").innerText = "";
+            document.getElementById("password").value = "";
+            setMessage("🔒 " + (reason || "Message hidden for security"));
+        }
+
+        async function copyToClipboard() {
+            if (decryptedText === null) {
+                setMessage("❌ No decrypted message to copy");
+                return;
+            }
+            try {
+                await navigator.clipboard.writeText(decryptedText);
+                setMessage("📋 Copied to clipboard!");
+            } catch (err) {
+                setMessage(`❌ Copy failed: ${err.message || err}`);
+            }
+        }
     </script>
 </head>
 
@@ -181,7 +273,7 @@ Uses Web Cryptography API (PBKDF2 + AES-GCM)
     </div>
 
     <div id="text_output_div" hidden>
-        <h3>Decrypted Message:</h3>
+        <h3>Decrypted Message: <button type="button" id="copy-btn" onclick="copyToClipboard()">📋 Copy</button><span id="timer-display"></span></h3>
         <pre id="target_text" class="decrypted"></pre>
     </div>
 
