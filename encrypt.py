@@ -4,28 +4,198 @@
 # dependencies = ["cryptography"]
 # ///
 """
-Encrypt a secret message for use with single.html
+Encrypt a secret message and output a self-contained HTML file.
 
 Usage:
-    uv run encrypt.py <password> <secret_message>
-    uv run encrypt.py "mypassword" "This is my secret"
+    uv run encrypt.py --password "mypassword" --secret "This is my secret" > secret.html
 
-Output: JSON object to embed in single.html
+Output: Complete HTML file with embedded encrypted secret
 """
 
+import argparse
 import json
 import os
-import sys
 
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
-# Constants (must match single.html)
+# Constants (must match HTML template)
 SALT_SIZE = 32  # bytes
 BLOCK_SIZE = 16  # bytes (IV size for AES-GCM)
 KEY_SIZE = 32  # bytes (AES-256)
 ITERATIONS = 5000000
+
+HTML_TEMPLATE = """<!DOCTYPE html>
+<!--
+Portable Secret - Self-contained encrypted message viewer
+Uses Web Cryptography API (PBKDF2 + AES-GCM)
+-->
+<html>
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="robots" content="none">
+    <style>
+        body {
+            background-color: floralwhite;
+            font-size: large;
+            margin: 50px;
+            font-family: system-ui, sans-serif;
+        }
+
+        div {
+            margin: 10px 0;
+        }
+
+        pre {
+            padding: 15px;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        button {
+            font-size: large;
+            padding: 12px 20px;
+            cursor: pointer;
+        }
+
+        input.password_input {
+            font-size: large;
+            padding: 12px 20px;
+            font-family: monospace;
+        }
+
+        .decrypted {
+            background-color: palegreen;
+            border: 2px dotted forestgreen;
+        }
+
+        #errormsg {
+            margin-left: 10px;
+        }
+
+        details {
+            margin-top: 30px;
+            color: #666;
+        }
+    </style>
+    <script>
+        const SECRET = {{SECRET_JSON}};
+
+        const saltSize = 32;   // bytes
+        const blockSize = 16;  // bytes (AES block / IV size)
+        const keySize = 32;    // bytes
+
+        async function init() {
+            document.getElementById("salt").value = SECRET.salt;
+            document.getElementById("iv").value = SECRET.iv;
+            document.getElementById("cipher").innerHTML = SECRET.cipher;
+            document.getElementById("password").addEventListener("keydown", (event) => {
+                if (event.key === "Enter") decrypt();
+            });
+            document.getElementById("password").focus();
+        }
+
+        async function decrypt() {
+            try {
+                setMessage("⏳ Generating key from password...");
+
+                const salt = hexStringToBytes(SECRET.salt);
+                if (salt.length !== saltSize) throw new Error(`Unexpected salt size: ${salt.length}`);
+
+                const iv = hexStringToBytes(SECRET.iv);
+                if (iv.length !== blockSize) throw new Error(`Unexpected IV size: ${iv.length}`);
+
+                const password = new TextEncoder().encode(document.getElementById("password").value);
+                if (password.length === 0) throw new Error("Empty password");
+
+                const passwordKey = await window.crypto.subtle.importKey(
+                    "raw", password,
+                    { name: "PBKDF2" },
+                    false, ["deriveKey"]
+                );
+
+                const key = await window.crypto.subtle.deriveKey(
+                    {
+                        name: "PBKDF2",
+                        salt: salt,
+                        iterations: SECRET.iterations,
+                        hash: "SHA-512",
+                    },
+                    passwordKey,
+                    { name: "AES-GCM", length: keySize * 8 },
+                    false, ["decrypt"]
+                );
+
+                setMessage("⏳ Decrypting...");
+
+                const cipher = hexStringToBytes(SECRET.cipher);
+                const decryptedBuffer = await window.crypto.subtle.decrypt(
+                    { name: "AES-GCM", iv: iv },
+                    key, cipher
+                );
+
+                const decrypted = removePadding(new Uint8Array(decryptedBuffer));
+                const plainText = new TextDecoder().decode(decrypted);
+
+                document.getElementById("target_text").innerText = plainText;
+                document.getElementById("text_output_div").hidden = false;
+                setMessage("✅ Decrypted successfully");
+
+            } catch (err) {
+                setMessage(`❌ Decryption failed: ${err.message || err}`);
+            }
+        }
+
+        function hexStringToBytes(input) {
+            const bytes = [];
+            for (let c = 0; c < input.length; c += 2) {
+                bytes.push(parseInt(input.substr(c, 2), 16));
+            }
+            return Uint8Array.from(bytes);
+        }
+
+        function removePadding(input) {
+            const padAmount = input[input.length - 1];
+            return input.slice(0, input.length - padAmount);
+        }
+
+        function setMessage(msg) {
+            document.getElementById("errormsg").innerHTML = msg;
+        }
+    </script>
+</head>
+
+<body onload="init()">
+    <h1>🔐 Encrypted Secret</h1>
+    <p>Enter the password to decrypt the hidden message.</p>
+
+    <div>
+        <input type="password" id="password" placeholder="Enter password" class="password_input" required>
+    </div>
+
+    <div>
+        <button type="button" onclick="decrypt()">Decrypt</button>
+        <span id="errormsg"></span>
+    </div>
+
+    <div id="text_output_div" hidden>
+        <h3>Decrypted Message:</h3>
+        <pre id="target_text" class="decrypted"></pre>
+    </div>
+
+    <details>
+        <summary>Technical Details</summary>
+        <p>Encryption: PBKDF2 (SHA-512) + AES-256-GCM</p>
+        <div>Salt: <input type="text" id="salt" size="66" readonly></div>
+        <div>IV: <input type="text" id="iv" size="34" readonly></div>
+        <div>Ciphertext:<br><textarea rows="4" cols="80" id="cipher" readonly></textarea></div>
+    </details>
+</body>
+
+</html>
+"""
 
 
 def pkcs7_pad(data: bytes, block_size: int) -> bytes:
@@ -67,20 +237,20 @@ def encrypt(password: str, plaintext: str) -> dict:
 
 
 def main():
-    if len(sys.argv) != 3:
-        print(f"Usage: {sys.argv[0]} <password> <secret_message>", file=sys.stderr)
-        print(f"Example: {sys.argv[0]} 'mypass' 'Hello World'", file=sys.stderr)
-        sys.exit(1)
+    parser = argparse.ArgumentParser(
+        description="Encrypt a secret message and output a self-contained HTML file."
+    )
+    parser.add_argument(
+        "--password", "-p", required=True, help="Password to encrypt the secret"
+    )
+    parser.add_argument(
+        "--secret", "-s", required=True, help="Secret message to encrypt"
+    )
+    args = parser.parse_args()
 
-    password = sys.argv[1]
-    secret = sys.argv[2]
-
-    if not password:
-        print("Error: Password cannot be empty", file=sys.stderr)
-        sys.exit(1)
-
-    result = encrypt(password, secret)
-    print(json.dumps(result))
+    result = encrypt(args.password, args.secret)
+    html = HTML_TEMPLATE.replace("{{SECRET_JSON}}", json.dumps(result))
+    print(html)
 
 
 if __name__ == "__main__":
