@@ -264,7 +264,8 @@ Uses Web Cryptography API (PBKDF2 + AES-GCM)
     <p>Enter the password to decrypt the hidden message.</p>
 
     <div>
-        <input type="password" id="password" placeholder="Enter password" class="password_input" required>
+        <input type="password" id="password" placeholder="Enter password" class="password_input" required
+               autocomplete="off" data-1p-ignore data-lpignore="true" data-form-type="other">
     </div>
 
     <div>
